@@ -8,7 +8,7 @@ import {
   User, Calendar, Wallet, FileText, LogIn, LogOut, 
   Menu, X, Plus, MapPin, Clock, AlertCircle, 
   Printer, Download, MessageCircle, Trash2, Save, 
-  ArrowUpCircle, ArrowDownCircle, Search, ChevronRight, // <--- Sudah ditambahkan di sini
+  ArrowUpCircle, ArrowDownCircle, Search, ChevronRight, 
   Sparkles, Copy, XCircle, Loader2, BarChart3, Trophy, Lock
 } from 'lucide-react';
 
@@ -16,7 +16,7 @@ import {
 // 1. KONFIGURASI DAN DATA
 // ==========================================
 
-// 🔴 PENTING: Ganti ini dengan Config Firebase Anda
+// Config Firebase Anda (Sudah Benar)
 const firebaseConfig = {
   apiKey: "AIzaSyATavbzpbpSsr-Qwdsw8YqHxhySQcoAVfI",
   authDomain: "simas-dprd-kholid.firebaseapp.com",
@@ -26,17 +26,17 @@ const firebaseConfig = {
   appId: "1:446275440078:web:250c8df5e69efe83546f9f"
 };
 
-// Inisialisasi Firebase (Safe Mode)
+// Inisialisasi Firebase
 let db;
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
 } catch (error) {
-  console.error("Firebase Config Error: Pastikan Anda sudah mengisi firebaseConfig di kode.");
+  console.error("Firebase Error:", error);
 }
 
 const ADMIN_PIN = "2024"; 
-const GEMINI_API_KEY = ""; 
+const GEMINI_API_KEY = ""; // Masukkan API Key AI jika punya
 
 // Data Real Count (Hardcoded)
 const VOTE_DATA = {
@@ -100,8 +100,9 @@ const PrintButton = () => <button onClick={() => window.print()} className="flex
 const ExportButton = ({ data, filename }) => {
   const handleExport = () => {
     if (!data || !data.length) return alert("Data kosong");
-    const headers = Object.keys(data[0]).join(",");
-    const rows = data.map(obj => Object.values(obj).map(val => `"${val}"`).join(",")).join("\n");
+    const cleanData = data.map(({ id, ...rest }) => rest);
+    const headers = Object.keys(cleanData[0]).join(",");
+    const rows = cleanData.map(obj => Object.values(obj).map(val => `"${val}"`).join(",")).join("\n");
     const link = document.createElement("a");
     link.href = encodeURI("data:text/csv;charset=utf-8," + headers + "\n" + rows);
     link.download = `${filename}.csv`;
@@ -146,7 +147,6 @@ const VoteModule = () => {
   const dataToShow = VOTE_DATA[activeCategory];
   const totalSuara = dataToShow.reduce((a,b) => a + (b.suara_kholid || b.suara_pkb || b.suara_caleg || 0), 0);
 
-  // Perbaikan Logika Reduce untuk mencari Dapil Tertinggi
   const highestDapil = dataToShow.reduce((prev, current) => {
     const valPrev = prev.suara_kholid || prev.suara_pkb || prev.suara_caleg || 0;
     const valCurr = current.suara_kholid || current.suara_pkb || current.suara_caleg || 0;
@@ -194,7 +194,7 @@ const VoteModule = () => {
 };
 
 // ==========================================
-// 4. MODUL POKIR (FIREBASE)
+// 4. MODUL POKIR (FIREBASE ACTIVE)
 // ==========================================
 const PokirModule = () => {
   const [view, setView] = useState('data'); 
@@ -207,6 +207,7 @@ const PokirModule = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [search, setSearch] = useState('');
 
+  // 🔴 FETCH DATA DARI FIREBASE (BUKAN LOCAL STORAGE)
   useEffect(() => {
     if (!db) return;
     const q = query(collection(db, "pokir"), orderBy("createdAt", "desc"));
@@ -232,6 +233,7 @@ const PokirModule = () => {
     const idToCheck = currentOpdType === 'special_permades' ? formData.uniq : formData.manual_id;
     if(!idToCheck) return alert("ID wajib diisi!");
     
+    // 🔴 SIMPAN KE FIREBASE
     const dataToSave = {
         createdAt: Date.now(),
         type: currentOpdType,
@@ -249,7 +251,7 @@ const PokirModule = () => {
       setView('data');
       setFormData({ opd: 'biro_kesra', manual_id: '', kode_rekening: '', uraian: '', kategori: '', sub_kategori: '', alamat: '', jenis_kegiatan: '', usulan: '', lokasi_detail: '', uniq: '', apbd: '', apbd_penetapan: '', ket: '' });
     } catch (e) {
-      alert("Gagal menyimpan. Cek config Firebase.");
+      alert("Gagal menyimpan. Cek koneksi internet.");
     }
   };
 
@@ -266,7 +268,7 @@ const PokirModule = () => {
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="flex justify-between items-center print:hidden">
-        <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Aspirasi (Cloud)</p></div>
+        <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Cloud (Live Sync)</p></div>
         <div className="flex gap-2"><button onClick={()=>setView('data')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view==='data'?'bg-green-600 text-white':'bg-white border text-slate-600'}`}>Data</button><button onClick={()=>setView('input')} className="px-4 py-2 rounded-lg text-sm bg-yellow-500 text-white flex gap-2 font-bold shadow hover:bg-yellow-600"><Plus size={16}/> Input</button></div>
       </div>
 
@@ -274,7 +276,6 @@ const PokirModule = () => {
          <div className="bg-white p-6 rounded-xl border border-slate-200 max-w-4xl mx-auto shadow-sm">
             <h3 className="font-bold mb-6 text-lg border-b pb-2 text-green-900">Input Aspirasi Baru</h3>
             <div className="mb-6"><label className="block text-sm font-bold text-slate-700 mb-1">Dinas Tujuan (OPD)</label><select className="w-full border p-2.5 rounded bg-slate-50 font-medium" value={formData.opd} onChange={e=>setFormData({...formData, opd: e.target.value})}>{LIST_OPD.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
-            
             <div className="grid md:grid-cols-2 gap-6">
                {currentOpdType === 'special_permades' ? (
                    <>
@@ -323,13 +324,14 @@ const PokirModule = () => {
 };
 
 // ==========================================
-// 5. MODUL KEUANGAN (FIREBASE)
+// 5. MODUL KEUANGAN (FIREBASE ACTIVE)
 // ==========================================
 const FinanceModule = () => {
   const [view, setView] = useState('list');
   const [transactions, setTransactions] = useState([]);
   const [form, setForm] = useState({ date: '', desc: '', type: 'out', amount: '', cat: '' });
 
+  // 🔴 FETCH DATA DARI FIREBASE
   useEffect(() => {
     if (!db) return;
     const q = query(collection(db, "keuangan"), orderBy("createdAt", "desc"));
@@ -382,7 +384,7 @@ const FinanceModule = () => {
 };
 
 // ==========================================
-// 6. MODUL JADWAL (FIREBASE + FILTER)
+// 6. MODUL JADWAL (FIREBASE ACTIVE + FILTER)
 // ==========================================
 const ScheduleModule = () => {
     const [schedules, setSchedules] = useState([]);
@@ -395,6 +397,7 @@ const ScheduleModule = () => {
         return besok.toISOString().split('T')[0];
     });
 
+    // 🔴 FETCH DATA DARI FIREBASE
     useEffect(() => {
         if (!db) return;
         const q = query(collection(db, "jadwal"), orderBy("date", "asc"));
@@ -480,6 +483,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    // Cek status login (di browser ini)
     const logged = localStorage.getItem('simas_is_logged_in');
     if (logged === 'true') setIsLoggedIn(true);
   }, []);
