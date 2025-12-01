@@ -16,7 +16,7 @@ import {
 // 1. KONFIGURASI DAN DATA
 // ==========================================
 
-// Config Firebase (Sesuai punya Anda)
+// Config Firebase (SUDAH DIPERBAIKI SESUAI DATA ANDA)
 const firebaseConfig = {
   apiKey: "AIzaSyATavbzpbpSsr-Qwdsw8YqHxhySQcoAVfI",
   authDomain: "simas-dprd-kholid.firebaseapp.com",
@@ -27,13 +27,18 @@ const firebaseConfig = {
 };
 
 // Inisialisasi Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+let db;
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+} catch (error) {
+  console.error("Firebase Error:", error);
+}
 
 const ADMIN_PIN = "2024"; 
-const GEMINI_API_KEY = ""; // Masukkan jika punya
+const GEMINI_API_KEY = ""; // Masukkan API Key AI jika punya (opsional)
 
-// Data Real Count (Hardcoded - Tetap Statis)
+// Data Real Count (Hardcoded)
 const VOTE_DATA = {
   dprd_kab: [
     { dapil: 'Dapil 1', wilayah: 'Kendal, Patebon, Pegandon, Ngampel', suara_pkb: 30996, kursi: 3, status: 'Juara 1' },
@@ -246,7 +251,7 @@ const PokirModule = () => {
       setView('data');
       setFormData({ opd: 'biro_kesra', manual_id: '', kode_rekening: '', uraian: '', kategori: '', sub_kategori: '', alamat: '', jenis_kegiatan: '', usulan: '', lokasi_detail: '', uniq: '', apbd: '', apbd_penetapan: '', ket: '' });
     } catch (e) {
-      alert("Gagal menyimpan. Cek internet.");
+      alert("Gagal menyimpan. Cek koneksi internet.");
     }
   };
 
@@ -263,7 +268,7 @@ const PokirModule = () => {
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="flex justify-between items-center print:hidden">
-        <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Cloud (Sync)</p></div>
+        <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Cloud (Live Sync)</p></div>
         <div className="flex gap-2"><button onClick={()=>setView('data')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view==='data'?'bg-green-600 text-white':'bg-white border text-slate-600'}`}>Data</button><button onClick={()=>setView('input')} className="px-4 py-2 rounded-lg text-sm bg-yellow-500 text-white flex gap-2 font-bold shadow hover:bg-yellow-600"><Plus size={16}/> Input</button></div>
       </div>
 
@@ -300,7 +305,7 @@ const PokirModule = () => {
       )}
       {view === 'data' && (
          <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <div className="flex justify-between mb-4 gap-2 print:hidden"><div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input className="pl-10 pr-4 py-2 border rounded-lg w-full" placeholder="Cari..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="flex gap-2"><ExportButton data={pokirData} filename="data_pokir"/><PrintButton/></div></div>
+            <div className="flex justify-between mb-4 gap-2 print:hidden"><div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input className="pl-10 pr-4 py-2 border rounded-lg w-full" placeholder="Cari ID / Uraian..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="flex gap-2"><ExportButton data={pokirData} filename="data_pokir"/><PrintButton/></div></div>
             <div className="overflow-x-auto"><table className="w-full text-sm text-left border-collapse"><thead className="bg-slate-50 text-slate-600 border-b"><tr><th className="p-3">ID / Uniq</th><th className="p-3">OPD</th><th className="p-3">Uraian / Usulan</th><th className="p-3">Lokasi</th><th className="p-3 text-right">Penetapan</th><th className="p-3 print:hidden">Aksi</th></tr></thead><tbody>
                 {filteredData.map(d=>(<tr key={d.id} className="border-b hover:bg-slate-50">
                     <td className="p-3 font-bold text-green-700">{d.type === 'special_permades' ? d.uniq : d.manual_id}</td>
@@ -310,7 +315,7 @@ const PokirModule = () => {
                     <td className="p-3 text-right font-bold">{formatRupiah(d.apbd_penetapan)}</td>
                     <td className="p-3 print:hidden"><button onClick={()=>handleDelete(d.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button></td>
                 </tr>))}
-                {filteredData.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data (Coba Input).</td></tr>}
+                {filteredData.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data inputan.</td></tr>}
             </tbody></table></div>
          </div>
       )}
@@ -326,6 +331,7 @@ const FinanceModule = () => {
   const [transactions, setTransactions] = useState([]);
   const [form, setForm] = useState({ date: '', desc: '', type: 'out', amount: '', cat: '' });
 
+  // 🔴 FETCH DATA DARI FIREBASE
   useEffect(() => {
     if (!db) return;
     const q = query(collection(db, "keuangan"), orderBy("createdAt", "desc"));
@@ -391,6 +397,7 @@ const ScheduleModule = () => {
         return besok.toISOString().split('T')[0];
     });
 
+    // 🔴 FETCH DATA DARI FIREBASE
     useEffect(() => {
         if (!db) return;
         const q = query(collection(db, "jadwal"), orderBy("date", "asc"));
@@ -413,6 +420,7 @@ const ScheduleModule = () => {
     };
 
     const handleBroadcast = () => {
+        // Filter Jadwal Harian
         const daily = schedules.filter(s => s.date === reportDate);
         if(daily.length === 0) return alert(`Tidak ada agenda pada tanggal ${reportDate}`);
         daily.sort((a,b) => a.time.localeCompare(b.time));
@@ -467,7 +475,7 @@ const ScheduleModule = () => {
 };
 
 // ==========================================
-// 7. LAYOUT UTAMA
+// 7. LAYOUT UTAMA (MAIN APP)
 // ==========================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('profile');
