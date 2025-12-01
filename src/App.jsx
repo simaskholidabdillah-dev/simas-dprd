@@ -16,7 +16,7 @@ import {
 // 1. KONFIGURASI DAN DATA
 // ==========================================
 
-// Config Firebase Anda (Sudah Benar)
+// Config Firebase (Sesuai punya Anda)
 const firebaseConfig = {
   apiKey: "AIzaSyATavbzpbpSsr-Qwdsw8YqHxhySQcoAVfI",
   authDomain: "simas-dprd-kholid.firebaseapp.com",
@@ -27,18 +27,13 @@ const firebaseConfig = {
 };
 
 // Inisialisasi Firebase
-let db;
-try {
-  const app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-} catch (error) {
-  console.error("Firebase Error:", error);
-}
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 const ADMIN_PIN = "2024"; 
-const GEMINI_API_KEY = ""; // Masukkan API Key AI jika punya
+const GEMINI_API_KEY = ""; // Masukkan jika punya
 
-// Data Real Count (Hardcoded)
+// Data Real Count (Hardcoded - Tetap Statis)
 const VOTE_DATA = {
   dprd_kab: [
     { dapil: 'Dapil 1', wilayah: 'Kendal, Patebon, Pegandon, Ngampel', suara_pkb: 30996, kursi: 3, status: 'Juara 1' },
@@ -194,7 +189,7 @@ const VoteModule = () => {
 };
 
 // ==========================================
-// 4. MODUL POKIR (FIREBASE ACTIVE)
+// 4. MODUL POKIR (FIREBASE REALTIME)
 // ==========================================
 const PokirModule = () => {
   const [view, setView] = useState('data'); 
@@ -207,7 +202,7 @@ const PokirModule = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [search, setSearch] = useState('');
 
-  // 🔴 FETCH DATA DARI FIREBASE (BUKAN LOCAL STORAGE)
+  // 🔴 FETCH DATA DARI FIREBASE (INI KUNCINYA)
   useEffect(() => {
     if (!db) return;
     const q = query(collection(db, "pokir"), orderBy("createdAt", "desc"));
@@ -233,7 +228,7 @@ const PokirModule = () => {
     const idToCheck = currentOpdType === 'special_permades' ? formData.uniq : formData.manual_id;
     if(!idToCheck) return alert("ID wajib diisi!");
     
-    // 🔴 SIMPAN KE FIREBASE
+    // 🔴 SIMPAN KE FIREBASE (BUKAN LOCAL)
     const dataToSave = {
         createdAt: Date.now(),
         type: currentOpdType,
@@ -251,7 +246,7 @@ const PokirModule = () => {
       setView('data');
       setFormData({ opd: 'biro_kesra', manual_id: '', kode_rekening: '', uraian: '', kategori: '', sub_kategori: '', alamat: '', jenis_kegiatan: '', usulan: '', lokasi_detail: '', uniq: '', apbd: '', apbd_penetapan: '', ket: '' });
     } catch (e) {
-      alert("Gagal menyimpan. Cek koneksi internet.");
+      alert("Gagal menyimpan. Cek internet.");
     }
   };
 
@@ -268,7 +263,7 @@ const PokirModule = () => {
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="flex justify-between items-center print:hidden">
-        <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Cloud (Live Sync)</p></div>
+        <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Cloud (Sync)</p></div>
         <div className="flex gap-2"><button onClick={()=>setView('data')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view==='data'?'bg-green-600 text-white':'bg-white border text-slate-600'}`}>Data</button><button onClick={()=>setView('input')} className="px-4 py-2 rounded-lg text-sm bg-yellow-500 text-white flex gap-2 font-bold shadow hover:bg-yellow-600"><Plus size={16}/> Input</button></div>
       </div>
 
@@ -315,7 +310,7 @@ const PokirModule = () => {
                     <td className="p-3 text-right font-bold">{formatRupiah(d.apbd_penetapan)}</td>
                     <td className="p-3 print:hidden"><button onClick={()=>handleDelete(d.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button></td>
                 </tr>))}
-                {filteredData.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data inputan.</td></tr>}
+                {filteredData.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data (Coba Input).</td></tr>}
             </tbody></table></div>
          </div>
       )}
@@ -324,14 +319,13 @@ const PokirModule = () => {
 };
 
 // ==========================================
-// 5. MODUL KEUANGAN (FIREBASE ACTIVE)
+// 5. MODUL KEUANGAN (FIREBASE REALTIME)
 // ==========================================
 const FinanceModule = () => {
   const [view, setView] = useState('list');
   const [transactions, setTransactions] = useState([]);
   const [form, setForm] = useState({ date: '', desc: '', type: 'out', amount: '', cat: '' });
 
-  // 🔴 FETCH DATA DARI FIREBASE
   useEffect(() => {
     if (!db) return;
     const q = query(collection(db, "keuangan"), orderBy("createdAt", "desc"));
@@ -384,7 +378,7 @@ const FinanceModule = () => {
 };
 
 // ==========================================
-// 6. MODUL JADWAL (FIREBASE ACTIVE + FILTER)
+// 6. MODUL JADWAL (FIREBASE REALTIME)
 // ==========================================
 const ScheduleModule = () => {
     const [schedules, setSchedules] = useState([]);
@@ -397,7 +391,6 @@ const ScheduleModule = () => {
         return besok.toISOString().split('T')[0];
     });
 
-    // 🔴 FETCH DATA DARI FIREBASE
     useEffect(() => {
         if (!db) return;
         const q = query(collection(db, "jadwal"), orderBy("date", "asc"));
@@ -420,7 +413,6 @@ const ScheduleModule = () => {
     };
 
     const handleBroadcast = () => {
-        // Filter Jadwal Harian
         const daily = schedules.filter(s => s.date === reportDate);
         if(daily.length === 0) return alert(`Tidak ada agenda pada tanggal ${reportDate}`);
         daily.sort((a,b) => a.time.localeCompare(b.time));
@@ -475,7 +467,7 @@ const ScheduleModule = () => {
 };
 
 // ==========================================
-// 7. LAYOUT UTAMA (MAIN APP)
+// 7. LAYOUT UTAMA
 // ==========================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -483,7 +475,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Cek status login (di browser ini)
+    // Cek Login di LocalStorage (Hanya untuk sesi)
     const logged = localStorage.getItem('simas_is_logged_in');
     if (logged === 'true') setIsLoggedIn(true);
   }, []);
