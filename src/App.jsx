@@ -8,7 +8,7 @@ import {
   User, Calendar, Wallet, FileText, LogIn, LogOut, 
   Menu, X, Plus, MapPin, Clock, AlertCircle, 
   Printer, Download, MessageCircle, Trash2, Save, 
-  ArrowUpCircle, ArrowDownCircle, Search, ChevronRight, 
+  ArrowUpCircle, ArrowDownCircle, Search, ChevronRight, // <--- SUDAH DITAMBAHKAN
   Sparkles, Copy, XCircle, Loader2, BarChart3, Trophy, Lock
 } from 'lucide-react';
 
@@ -100,9 +100,8 @@ const PrintButton = () => <button onClick={() => window.print()} className="flex
 const ExportButton = ({ data, filename }) => {
   const handleExport = () => {
     if (!data || !data.length) return alert("Data kosong");
-    const cleanData = data.map(({ id, ...rest }) => rest);
-    const headers = Object.keys(cleanData[0]).join(",");
-    const rows = cleanData.map(obj => Object.values(obj).map(val => `"${val}"`).join(",")).join("\n");
+    const headers = Object.keys(data[0]).join(",");
+    const rows = data.map(obj => Object.values(obj).map(val => `"${val}"`).join(",")).join("\n");
     const link = document.createElement("a");
     link.href = encodeURI("data:text/csv;charset=utf-8," + headers + "\n" + rows);
     link.download = `${filename}.csv`;
@@ -305,7 +304,7 @@ const PokirModule = () => {
       )}
       {view === 'data' && (
          <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <div className="flex justify-between mb-4 gap-2 print:hidden"><div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input className="pl-10 pr-4 py-2 border rounded-lg w-full" placeholder="Cari ID / Uraian..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="flex gap-2"><ExportButton data={pokirData} filename="data_pokir"/><PrintButton/></div></div>
+            <div className="flex justify-between mb-4 gap-2 print:hidden"><div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input className="pl-10 pr-4 py-2 border rounded-lg w-full" placeholder="Cari..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="flex gap-2"><ExportButton data={pokirData} filename="data_pokir"/><PrintButton/></div></div>
             <div className="overflow-x-auto"><table className="w-full text-sm text-left border-collapse"><thead className="bg-slate-50 text-slate-600 border-b"><tr><th className="p-3">ID / Uniq</th><th className="p-3">OPD</th><th className="p-3">Uraian / Usulan</th><th className="p-3">Lokasi</th><th className="p-3 text-right">Penetapan</th><th className="p-3 print:hidden">Aksi</th></tr></thead><tbody>
                 {filteredData.map(d=>(<tr key={d.id} className="border-b hover:bg-slate-50">
                     <td className="p-3 font-bold text-green-700">{d.type === 'special_permades' ? d.uniq : d.manual_id}</td>
@@ -420,7 +419,6 @@ const ScheduleModule = () => {
     };
 
     const handleBroadcast = () => {
-        // Filter Jadwal Harian
         const daily = schedules.filter(s => s.date === reportDate);
         if(daily.length === 0) return alert(`Tidak ada agenda pada tanggal ${reportDate}`);
         daily.sort((a,b) => a.time.localeCompare(b.time));
