@@ -3,15 +3,15 @@ import {
   User, Calendar, Wallet, FileText, LogIn, LogOut, 
   Menu, X, Plus, MapPin, Clock, AlertCircle, 
   Printer, Download, MessageCircle, Trash2, Save, 
-  ArrowUpCircle, ArrowDownCircle, ChevronRight, Search,
+  ArrowUpCircle, ArrowDownCircle, Search,
   Sparkles, Copy, XCircle, Loader2, BarChart3, Trophy, Lock
 } from 'lucide-react';
 
 // --- 1. KONFIGURASI GLOBAL ---
-const ADMIN_PIN = "2024"; // PIN Login
-const apiKey = ""; // Masukkan API Key Gemini di sini
+const ADMIN_PIN = "2024"; // PIN Login (Ganti jika perlu)
+const apiKey = ""; // API Key Gemini (Opsional)
 
-// --- 2. DATA REFERENSI (REAL COUNT 2024) ---
+// --- 2. DATA REFERENSI (REAL COUNT) ---
 const VOTE_DATA = {
   dprd_kab: [
     { dapil: 'Dapil 1', wilayah: 'Kendal, Patebon, Pegandon, Ngampel', suara_pkb: 30996, kursi: 3, status: 'Juara 1' },
@@ -42,7 +42,7 @@ const VOTE_DATA = {
 const LIST_OPD = [
   { id: 'biro_kesra', name: 'Biro Kesra', type: 'standard' },
   { id: 'disdikbud', name: 'Dinas Pendidikan', type: 'standard' },
-  { id: 'dinpermades', name: 'Dinpermades', type: 'special_permades' },
+  { id: 'dinpermades', name: 'Dinpermades', type: 'special_permades' }, // FORMAT KHUSUS
   { id: 'binamarga', name: 'PU Bina Marga', type: 'standard' },
   { id: 'pertanian', name: 'Dinas Pertanian', type: 'standard' },
   { id: 'dinsos', name: 'Dinas Sosial', type: 'standard' },
@@ -77,13 +77,14 @@ const callGeminiAI = async (prompt) => {
   } catch (e) { return "Error koneksi AI."; }
 };
 
-// --- 4. KOMPONEN KECIL ---
+// --- 4. KOMPONEN UI ---
 const PrintButton = () => <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-800 px-3 py-2 rounded-lg text-sm hover:bg-slate-200 font-bold"><Printer size={16} /> Print</button>;
 const ExportButton = ({ data, filename }) => {
   const handleExport = () => {
     if (!data || !data.length) return alert("Data kosong");
-    const headers = Object.keys(data[0]).join(",");
-    const rows = data.map(obj => Object.values(obj).map(val => `"${val}"`).join(",")).join("\n");
+    const cleanData = data.map(({ internal_id, ...rest }) => rest); // Hapus ID internal
+    const headers = Object.keys(cleanData[0]).join(",");
+    const rows = cleanData.map(obj => Object.values(obj).map(val => `"${val}"`).join(",")).join("\n");
     const link = document.createElement("a");
     link.href = encodeURI("data:text/csv;charset=utf-8," + headers + "\n" + rows);
     link.download = `${filename}.csv`;
@@ -92,16 +93,55 @@ const ExportButton = ({ data, filename }) => {
   return <button onClick={handleExport} className="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-2 rounded-lg text-sm hover:bg-green-200 font-bold"><Download size={16} /> Export CSV</button>;
 };
 
+const AIResultModal = ({ isOpen, onClose, title, content, isLoading }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white rounded-t-2xl">
+          <h3 className="font-bold text-purple-900 flex items-center gap-2"><Sparkles size={18}/> {title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button>
+        </div>
+        <div className="p-6 overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+               <Loader2 size={48} className="animate-spin text-purple-500 mb-4"/><p>Sedang menganalisis...</p>
+            </div>
+          ) : (
+            <div className="prose prose-sm max-w-none text-slate-700 whitespace-pre-wrap leading-relaxed">{content}</div>
+          )}
+        </div>
+        <div className="p-4 border-t bg-slate-50 rounded-b-2xl flex justify-end">
+             <button onClick={() => {navigator.clipboard.writeText(content); alert('Teks tersalin!')}} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold flex gap-2 items-center"><Copy size={16}/> Salin</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- 5. MODUL VOTE ---
 const VoteModule = () => {
   const [activeCategory, setActiveCategory] = useState('dprd_prop');
+  const [aiModal, setAiModal] = useState({ isOpen: false, title: '', content: '' });
+  const [isGenerating, setIsGenerating] = useState(false);
   const dataToShow = VOTE_DATA[activeCategory];
   const totalSuara = dataToShow.reduce((a,b) => a + (b.suara_kholid || b.suara_pkb || b.suara_caleg || 0), 0);
+
+  const handleAiAnalysis = async () => {
+    setAiModal({ isOpen: true, title: 'Analisis Politik AI', content: '' });
+    setIsGenerating(true);
+    const contextMap = { 'dprd_kab': 'DPRD Kab Kendal (PKB)', 'dprd_prop': 'DPRD Prov Jateng (Pak Kholid)', 'dpr_ri': 'DPR RI (Alamudin)' };
+    const prompt = `Analisis data perolehan suara untuk ${contextMap[activeCategory]}: ${JSON.stringify(dataToShow)}. Berikan insight strategis singkat untuk persiapan pemilu selanjutnya.`;
+    const result = await callGeminiAI(prompt);
+    setAiModal(prev => ({ ...prev, content: result }));
+    setIsGenerating(false);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 print:hidden">
-         <div><h2 className="text-2xl font-bold text-green-900">Real Count Suara 2024</h2><p className="text-sm text-slate-500">Rekapitulasi KPU</p></div>
+         <div><h2 className="text-2xl font-bold text-green-900">Real Count Suara 2024</h2><p className="text-sm text-slate-500">Rekapitulasi KPU Kabupaten Kendal</p></div>
+         <button onClick={handleAiAnalysis} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-purple-700 shadow"><Sparkles size={18}/> Analisis AI</button>
       </div>
       <div className="flex p-1 bg-slate-100 rounded-xl overflow-hidden print:hidden">
         {[ { id: 'dprd_kab', label: 'DPRD Kab (PKB)' }, { id: 'dprd_prop', label: 'DPRD Prov (Pak Kholid)' }, { id: 'dpr_ri', label: 'DPR RI (Alamudin)' } ].map(tab => (
@@ -110,7 +150,7 @@ const VoteModule = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-green-600 text-white p-6 rounded-xl shadow-lg"><p className="text-green-100 text-sm font-medium mb-1">Total Perolehan Suara</p><h3 className="text-3xl font-bold">{formatAngka(totalSuara)}</h3></div>
-          <div className="bg-white p-6 rounded-xl border shadow-sm"><p className="text-slate-500 text-sm font-medium mb-1">Dapil Tertinggi</p><h3 className="text-xl font-bold text-slate-800">{dataToShow.reduce((p, c) => ((p.suara_kholid || p.suara_pkb) > (c.suara_kholid || c.suara_pkb)) ? p : c).dapil || 'Dapil 1'}</h3></div>
+          <div className="bg-white p-6 rounded-xl border shadow-sm"><p className="text-slate-500 text-sm font-medium mb-1">Dapil Tertinggi</p><h3 className="text-xl font-bold text-slate-800">{dataToShow.reduce((p, c) => ((p.suara_kholid || p.suara_pkb || p.suara_caleg) > (c.suara_kholid || c.suara_pkb || c.suara_caleg)) ? p : c).dapil || 'Dapil 1'}</h3></div>
       </div>
       <div className="bg-white p-6 rounded-xl border shadow-sm">
          <h3 className="font-bold text-slate-700 mb-6 flex items-center gap-2"><BarChart3 size={20}/> Grafik Sebaran Suara</h3>
@@ -122,15 +162,20 @@ const VoteModule = () => {
             })}
          </div>
       </div>
+      <AIResultModal isOpen={aiModal.isOpen} onClose={() => setAiModal({ ...aiModal, isOpen: false })} title={aiModal.title} content={aiModal.content} isLoading={isGenerating}/>
     </div>
   );
 };
 
-// --- 6. MODUL POKIR (LOGIKA DINPERMADES) ---
+// --- 6. MODUL POKIR (DIKEMBALIKAN KE FORMAT KHUSUS) ---
 const PokirModule = () => {
   const [view, setView] = useState('data'); 
   const [pokirData, setPokirData] = useStickyState([], 'simas_pokir_data');
-  const [formData, setFormData] = useState({ opd: 'biro_kesra', manual_id: '', kode_rekening: '', uraian: '', kategori: '', sub_kategori: '', alamat: '', jenis_kegiatan: '', usulan: '', lokasi_detail: '', uniq: '', apbd: '', apbd_penetapan: '', ket: '' });
+  const [formData, setFormData] = useState({ 
+    opd: 'biro_kesra', manual_id: '', kode_rekening: '', uraian: '', kategori: '', sub_kategori: '', alamat: '', 
+    jenis_kegiatan: '', usulan: '', lokasi_detail: '', uniq: '', 
+    apbd: '', apbd_penetapan: '', ket: '' 
+  });
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -140,7 +185,7 @@ const PokirModule = () => {
     const text = currentOpdType === 'special_permades' ? formData.usulan : formData.uraian;
     if (!text || text.length < 5) return alert("Isi teks kegiatan dulu.");
     setIsAiLoading(true);
-    const result = await callGeminiAI(`Perbaiki bahasa jadi formal: "${text}"`);
+    const result = await callGeminiAI(`Perbaiki kalimat ini jadi bahasa proposal formal pemerintahan: "${text}"`);
     if(currentOpdType === 'special_permades') setFormData({...formData, usulan: result.replace(/^"|"$/g, '')});
     else setFormData({...formData, uraian: result.replace(/^"|"$/g, '')});
     setIsAiLoading(false);
@@ -148,8 +193,24 @@ const PokirModule = () => {
 
   const handleSubmit = () => {
     const idToCheck = currentOpdType === 'special_permades' ? formData.uniq : formData.manual_id;
-    if(!idToCheck) return alert("ID wajib diisi!");
-    setPokirData([...pokirData, { internal_id: Date.now(), type: currentOpdType, ...formData, apbd: parseInt(formData.apbd)||0, apbd_penetapan: parseInt(formData.apbd_penetapan)||0 }]);
+    if(!idToCheck) return alert("ID / Nomor Uniq wajib diisi!");
+    
+    // Tentukan kolom mana yang disimpan (agar rapi saat export)
+    const dataToSave = {
+        internal_id: Date.now(),
+        type: currentOpdType,
+        opd: formData.opd,
+        // Common fields
+        apbd: parseInt(formData.apbd)||0, 
+        apbd_penetapan: parseInt(formData.apbd_penetapan)||0,
+        ket: formData.ket,
+        // Conditional fields
+        ...(currentOpdType === 'special_permades' 
+            ? { uniq: formData.uniq, jenis_kegiatan: formData.jenis_kegiatan, usulan: formData.usulan, lokasi_detail: formData.lokasi_detail } 
+            : { manual_id: formData.manual_id, kode_rekening: formData.kode_rekening, uraian: formData.uraian, kategori: formData.kategori, sub_kategori: formData.sub_kategori, alamat: formData.alamat })
+    };
+
+    setPokirData([...pokirData, dataToSave]);
     setView('data');
     setFormData({ opd: 'biro_kesra', manual_id: '', kode_rekening: '', uraian: '', kategori: '', sub_kategori: '', alamat: '', jenis_kegiatan: '', usulan: '', lokasi_detail: '', uniq: '', apbd: '', apbd_penetapan: '', ket: '' });
   };
@@ -166,25 +227,28 @@ const PokirModule = () => {
         <div><h2 className="text-2xl font-bold text-green-900">Manajemen Pokir</h2><p className="text-sm text-slate-500">Database Aspirasi</p></div>
         <div className="flex gap-2"><button onClick={()=>setView('data')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view==='data'?'bg-green-600 text-white':'bg-white border text-slate-600'}`}>Data</button><button onClick={()=>setView('input')} className="px-4 py-2 rounded-lg text-sm bg-yellow-500 text-white flex gap-2 font-bold shadow hover:bg-yellow-600"><Plus size={16}/> Input</button></div>
       </div>
+
       {view === 'input' && (
          <div className="bg-white p-6 rounded-xl border border-slate-200 max-w-4xl mx-auto shadow-sm">
             <h3 className="font-bold mb-6 text-lg border-b pb-2 text-green-900">Input Aspirasi Baru</h3>
             <div className="mb-6"><label className="block text-sm font-bold text-slate-700 mb-1">Dinas Tujuan (OPD)</label><select className="w-full border p-2.5 rounded bg-slate-50 font-medium" value={formData.opd} onChange={e=>setFormData({...formData, opd: e.target.value})}>{LIST_OPD.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
+            
             <div className="grid md:grid-cols-2 gap-6">
                {currentOpdType === 'special_permades' ? (
                    <>
                      <div className="md:col-span-2 bg-yellow-50 p-3 rounded border border-yellow-200 text-yellow-800 text-sm font-bold flex gap-2"><AlertCircle size={16}/> Mode Input: Format Khusus Dinpermades</div>
-                     <div><label className="text-sm font-bold text-green-800">Nomor UNIQ (Wajib)</label><input className="w-full border-2 border-green-200 p-2 rounded font-bold" value={formData.uniq} onChange={e=>setFormData({...formData, uniq: e.target.value})} placeholder="Kode Uniq..."/></div>
+                     <div><label className="text-sm font-bold text-green-800">Nomor UNIQ</label><input className="w-full border-2 border-green-200 p-2 rounded font-bold" value={formData.uniq} onChange={e=>setFormData({...formData, uniq: e.target.value})} placeholder="Kode Uniq..."/></div>
                      <div><label className="text-sm font-bold">Jenis Kegiatan</label><input className="w-full border p-2 rounded" value={formData.jenis_kegiatan} onChange={e=>setFormData({...formData, jenis_kegiatan: e.target.value})}/></div>
                      <div className="md:col-span-2"><label className="text-sm font-bold">Usulan Kegiatan</label><div className="relative"><textarea className="w-full border p-2 rounded pr-10" rows={3} value={formData.usulan} onChange={e=>setFormData({...formData, usulan: e.target.value})}/><button onClick={handleAiRefine} disabled={isAiLoading} className="absolute right-2 bottom-2 text-purple-600">{isAiLoading?<Loader2 size={16} className="animate-spin"/>:<Sparkles size={18}/>}</button></div></div>
                      <div className="md:col-span-2"><label className="text-sm font-bold">Lokasi Detail</label><input className="w-full border p-2 rounded" value={formData.lokasi_detail} onChange={e=>setFormData({...formData, lokasi_detail: e.target.value})}/></div>
                    </>
                ) : (
                    <>
-                     <div><label className="text-sm font-bold text-green-800">ID Proposal (Manual)</label><input className="w-full border-2 border-green-200 p-2 rounded font-bold" value={formData.manual_id} onChange={e=>setFormData({...formData, manual_id: e.target.value})} placeholder="No. Proposal..."/></div>
+                     <div><label className="text-sm font-bold text-green-800">ID Proposal</label><input className="w-full border-2 border-green-200 p-2 rounded font-bold" value={formData.manual_id} onChange={e=>setFormData({...formData, manual_id: e.target.value})} placeholder="No. Proposal..."/></div>
                      <div><label className="text-sm font-bold">Kode Rekening</label><input className="w-full border p-2 rounded" value={formData.kode_rekening} onChange={e=>setFormData({...formData, kode_rekening: e.target.value})}/></div>
                      <div className="md:col-span-2"><label className="text-sm font-bold">Uraian Kegiatan</label><div className="relative"><textarea className="w-full border p-2 rounded pr-10" rows={3} value={formData.uraian} onChange={e=>setFormData({...formData, uraian: e.target.value})}/><button onClick={handleAiRefine} disabled={isAiLoading} className="absolute right-2 bottom-2 text-purple-600">{isAiLoading?<Loader2 size={16} className="animate-spin"/>:<Sparkles size={18}/>}</button></div></div>
                      <div><label className="text-sm font-bold">Kategori</label><input className="w-full border p-2 rounded" value={formData.kategori} onChange={e=>setFormData({...formData, kategori: e.target.value})}/></div>
+                     <div><label className="text-sm font-bold">Sub Kategori</label><input className="w-full border p-2 rounded" value={formData.sub_kategori} onChange={e=>setFormData({...formData, sub_kategori: e.target.value})}/></div>
                      <div><label className="text-sm font-bold">Alamat</label><input className="w-full border p-2 rounded" value={formData.alamat} onChange={e=>setFormData({...formData, alamat: e.target.value})}/></div>
                    </>
                )}
@@ -199,9 +263,16 @@ const PokirModule = () => {
       {view === 'data' && (
          <div className="bg-white p-6 rounded-xl border shadow-sm">
             <div className="flex justify-between mb-4 gap-2 print:hidden"><div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input className="pl-10 pr-4 py-2 border rounded-lg w-full" placeholder="Cari..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="flex gap-2"><ExportButton data={pokirData} filename="data_pokir"/><PrintButton/></div></div>
-            <div className="overflow-x-auto"><table className="w-full text-sm text-left border-collapse"><thead className="bg-slate-50 text-slate-600 border-b"><tr><th className="p-3">ID / Uniq</th><th className="p-3">OPD</th><th className="p-3">Uraian / Usulan</th><th className="p-3 text-right">Penetapan</th><th className="p-3 print:hidden">Aksi</th></tr></thead><tbody>
-                {filteredData.map(d=>(<tr key={d.internal_id} className="border-b hover:bg-slate-50"><td className="p-3 font-bold text-green-700">{d.type === 'special_permades' ? d.uniq : d.manual_id}</td><td className="p-3 text-xs uppercase">{LIST_OPD.find(o=>o.id===d.opd)?.name}</td><td className="p-3 max-w-md"><div className="font-bold text-slate-700">{d.type === 'special_permades' ? d.usulan : d.uraian}</div></td><td className="p-3 text-right font-bold">{formatRupiah(d.apbd_penetapan)}</td><td className="p-3 print:hidden"><button onClick={()=>{if(window.confirm('Hapus?')) setPokirData(pokirData.filter(x=>x.internal_id!==d.internal_id))}} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button></td></tr>))}
-                {filteredData.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-400">Belum ada data.</td></tr>}
+            <div className="overflow-x-auto"><table className="w-full text-sm text-left border-collapse"><thead className="bg-slate-50 text-slate-600 border-b"><tr><th className="p-3">ID / Uniq</th><th className="p-3">OPD</th><th className="p-3">Uraian / Usulan</th><th className="p-3">Lokasi</th><th className="p-3 text-right">Penetapan</th><th className="p-3 print:hidden">Aksi</th></tr></thead><tbody>
+                {filteredData.map(d=>(<tr key={d.internal_id} className="border-b hover:bg-slate-50">
+                    <td className="p-3 font-bold text-green-700">{d.type === 'special_permades' ? d.uniq : d.manual_id}</td>
+                    <td className="p-3 text-xs uppercase">{LIST_OPD.find(o=>o.id===d.opd)?.name}</td>
+                    <td className="p-3 max-w-md"><div className="font-bold text-slate-700">{d.type === 'special_permades' ? d.usulan : d.uraian}</div><div className="text-xs text-slate-500">{d.type === 'special_permades' ? d.jenis_kegiatan : `${d.kode_rekening || ''} ${d.kategori || ''}`}</div></td>
+                    <td className="p-3 text-xs">{d.type === 'special_permades' ? d.lokasi_detail : d.alamat}</td>
+                    <td className="p-3 text-right font-bold">{formatRupiah(d.apbd_penetapan)}</td>
+                    <td className="p-3 print:hidden"><button onClick={()=>{if(window.confirm('Hapus?')) setPokirData(pokirData.filter(x=>x.internal_id!==d.internal_id))}} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button></td>
+                </tr>))}
+                {filteredData.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data inputan.</td></tr>}
             </tbody></table></div>
          </div>
       )}
@@ -250,16 +321,15 @@ const FinanceModule = () => {
   );
 };
 
-// --- 8. MODUL JADWAL (UPDATE: FILTER TANGGAL LAPORAN) ---
+// --- 8. MODUL JADWAL (UPDATE: FILTER TANGGAL HARIAN) ---
 const ScheduleModule = () => {
     const [schedules, setSchedules] = useStickyState([], 'simas_schedule_data');
     const [form, setForm] = useState({ date: '', time: '', title: '', loc: '', status: 'Terjadwal' });
     const [showInput, setShowInput] = useState(false);
     
-    // STATE BARU: Tanggal untuk filter broadcast (Default: Besok)
+    // STATE: Filter Tanggal Laporan (Default = Besok)
     const [reportDate, setReportDate] = useState(() => {
-        const besok = new Date();
-        besok.setDate(besok.getDate() + 1);
+        const besok = new Date(); besok.setDate(besok.getDate() + 1);
         return besok.toISOString().split('T')[0];
     });
 
@@ -269,28 +339,20 @@ const ScheduleModule = () => {
         setShowInput(false); setForm({ date: '', time: '', title: '', loc: '', status: 'Terjadwal' });
     };
 
-    // FITUR BROADCAST WA DENGAN FILTER TANGGAL
     const handleBroadcast = () => {
-        // Filter jadwal hanya untuk tanggal yang dipilih
-        const dailyAgenda = schedules.filter(s => s.date === reportDate);
+        // Filter Jadwal Berdasarkan Tanggal yang Dipilih
+        const daily = schedules.filter(s => s.date === reportDate);
+        if(daily.length === 0) return alert(`Tidak ada agenda pada tanggal ${reportDate}`);
         
-        if(dailyAgenda.length === 0) return alert(`Tidak ada agenda pada tanggal ${reportDate}`);
-        
-        // Urutkan berdasarkan jam
-        dailyAgenda.sort((a,b) => a.time.localeCompare(b.time));
+        // Urutkan Pagi -> Malam
+        daily.sort((a,b) => a.time.localeCompare(b.time));
 
-        // Format Pesan WA
         let message = `*🗓️ LAPORAN AGENDA HARIAN* %0A`;
         message += `*Tanggal: ${reportDate.split('-').reverse().join('-')}* %0A%0A`;
         message += `Yth. H. Kholid Abdillah%0ABerikut jadwal kegiatan Bapak:%0A%0A`;
-        
-        dailyAgenda.forEach((item, index) => {
-            message += `*${index+1}. ${item.title}*%0A`;
-            message += `   🕒 Pukul: ${item.time} WIB%0A`;
-            message += `   📍 Lokasi: ${item.loc}%0A`;
-            message += `   ℹ️ Status: ${item.status}%0A%0A`;
+        daily.forEach((item, index) => {
+            message += `*${index+1}. ${item.title}*%0A   🕒 ${item.time} WIB | 📍 ${item.loc}%0A   ℹ️ ${item.status}%0A%0A`;
         });
-        
         message += `_Mohon dipersiapkan. Terima kasih._`;
         window.open(`https://wa.me/?text=${message}`, '_blank');
     };
@@ -299,14 +361,15 @@ const ScheduleModule = () => {
         <div className="space-y-6 animate-in fade-in">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 print:hidden">
                 <div><h2 className="text-2xl font-bold text-green-900">Jadwal Agenda</h2><p className="text-sm text-slate-500">Manajemen Waktu</p></div>
-                <div className="flex items-center gap-2 bg-white p-1 rounded-lg border">
-                    <span className="text-xs font-bold text-slate-500 px-2">Tgl Laporan:</span>
-                    <input type="date" className="text-sm border p-1 rounded" value={reportDate} onChange={e=>setReportDate(e.target.value)}/>
-                    <button onClick={handleBroadcast} className="bg-green-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 hover:bg-green-600"><MessageCircle size={16}/> Kirim WA</button>
+                <div className="flex gap-2 items-center">
+                    <div className="bg-white border rounded-lg p-1 flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 px-2">Tgl Laporan:</span>
+                        <input type="date" className="text-sm border-none outline-none" value={reportDate} onChange={e=>setReportDate(e.target.value)}/>
+                        <button onClick={handleBroadcast} className="bg-green-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 hover:bg-green-600"><MessageCircle size={16}/> Kirim WA</button>
+                    </div>
+                    <button onClick={()=>setShowInput(!showInput)} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Plus size={18}/> Baru</button>
                 </div>
-                <button onClick={()=>setShowInput(!showInput)} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Plus size={18}/> Baru</button>
             </div>
-
             {showInput && (
                 <div className="bg-white p-6 rounded-xl border shadow-lg mb-6 max-w-2xl">
                     <h3 className="font-bold mb-4">Tambah Agenda</h3>
@@ -320,7 +383,6 @@ const ScheduleModule = () => {
                     <button onClick={handleSave} className="w-full bg-green-600 text-white py-2 rounded font-bold mt-4">Simpan Agenda</button>
                 </div>
             )}
-
             <div className="grid gap-4">
                 {schedules.map(s => (
                     <div key={s.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-4 hover:shadow-md transition">
@@ -329,7 +391,6 @@ const ScheduleModule = () => {
                         <div className="flex gap-2"><span className={`px-3 py-1 rounded-full text-xs font-bold border ${s.status==='Selesai'?'bg-green-100 text-green-800 border-green-200':'bg-yellow-100 text-yellow-800 border-yellow-200'}`}>{s.status}</span><button onClick={() => {if(window.confirm('Hapus?')) setSchedules(schedules.filter(x => x.id !== s.id))}} className="text-slate-300 hover:text-red-500"><Trash2 size={18}/></button></div>
                     </div>
                 ))}
-                {schedules.length === 0 && <div className="text-center p-8 text-slate-400">Belum ada agenda.</div>}
             </div>
         </div>
     );
